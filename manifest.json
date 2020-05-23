@@ -1,0 +1,15 @@
+{
+    "manifest_version": 2,
+    "name": "Temporary Container",
+    "version": "0.0.2",
+    "description": "Allows you to create a temporary container tab that gets deleted upon tab closure.",
+    "background": {
+        "scripts": ["main.js"]
+    },
+    "permissions": [
+        "cookies",
+        "contextualIdentities",
+        "bookmarks",
+        "menus"
+    ]
+}

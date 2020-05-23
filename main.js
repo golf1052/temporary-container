@@ -1,5 +1,6 @@
 const contextMenuLinkId = "temporary-container-link";
 const contextMenuTabId = "temporary-container-tab";
+const contextualIdentityNameLength = 16;
 
 const tabIdToContextId = new Map();
 const contextualIdentityColors = [
@@ -45,7 +46,7 @@ browser.menus.onClicked.addListener(function(info, tab) {
     if (info.menuItemId === contextMenuLinkId && info.linkUrl) {
         // create a new temporary container for the selected link
         browser.contextualIdentities.create({
-            name: getRandomString(16),
+            name: getRandomString(contextualIdentityNameLength),
             color: getRandomItemFromArray(contextualIdentityColors),
             icon: getRandomItemFromArray(contextualIdentityIcons)
         })
@@ -63,7 +64,7 @@ browser.menus.onClicked.addListener(function(info, tab) {
     } else if (info.menuItemId === contextMenuTabId && info.pageUrl) {
         // create a new temporary container for the selected tab
         browser.contextualIdentities.create({
-            name: getRandomString(16),
+            name: getRandomString(contextualIdentityNameLength),
             color: getRandomItemFromArray(contextualIdentityColors),
             icon: getRandomItemFromArray(contextualIdentityIcons)
         })
@@ -104,3 +105,38 @@ function getRandomItemFromArray(arr) {
 function getRandomInt(max) {
     return Math.floor(Math.random() * Math.floor(max));
 }
+
+function checkForOrphanedContextualIdentities() {
+    Promise.all([browser.contextualIdentities.query({}),
+        browser.tabs.query({})])
+    .then((values) => {
+        const identities = values[0];
+        const tabs = values[1];
+
+        identities.filter((identity) => {
+            // filter down to identities we probably created, meaning it's the right length and all numbers
+            let allCharsAreNumber = true;
+            for (const c of identity.name) {
+                if (Number.isNaN(Number.parseInt(c))) {
+                    allCharsAreNumber = false;
+                }
+            }
+            return identity.name.length == contextualIdentityNameLength && allCharsAreNumber;
+        })
+        .forEach((identity) => {
+            // now if that identity is not in use by a currently open tab delete it
+            let identityInUse = false;
+            tabs.forEach((tab) => {
+                if (tab.cookieStoreId == identity.cookieStoreId) {
+                    identityInUse = true;
+                }
+            });
+
+            if (!identityInUse) {
+                browser.contextualIdentities.remove(identity.cookieStoreId);
+            }
+        });
+    });
+}
+
+checkForOrphanedContextualIdentities();

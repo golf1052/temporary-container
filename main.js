@@ -1,5 +1,7 @@
-const contextMenuId = "temporary-container";
-const tabIdToContextId = {};
+const contextMenuLinkId = "temporary-container-link";
+const contextMenuTabId = "temporary-container-tab";
+
+const tabIdToContextId = new Map();
 const contextualIdentityColors = [
     "blue",
     "turquoise",
@@ -27,35 +29,63 @@ const contextualIdentityIcons = [
     "fence"
 ];
 
-const id = browser.menus.create({
-    id: contextMenuId,
+browser.menus.create({
+    id: contextMenuLinkId,
     title: "Create temporary container",
     contexts: ["bookmark", "link"]
 });
 
+browser.menus.create({
+    id: contextMenuTabId,
+    title: "Reopen in new temporary container",
+    contexts: ["tab"]
+});
+
 browser.menus.onClicked.addListener(function(info, tab) {
-    if (info.menuItemId === contextMenuId && info.linkUrl) {
+    if (info.menuItemId === contextMenuLinkId && info.linkUrl) {
+        // create a new temporary container for the selected link
         browser.contextualIdentities.create({
             name: getRandomString(16),
             color: getRandomItemFromArray(contextualIdentityColors),
             icon: getRandomItemFromArray(contextualIdentityIcons)
         })
         .then((contextualIdentity) => {
+            // now create a tab for that link
             browser.tabs.create({
                 cookieStoreId: contextualIdentity.cookieStoreId,
                 url: info.linkUrl
             })
             .then((tab) => {
-                tabIdToContextId[tab.id] = contextualIdentity.cookieStoreId;
+                // then store it in our map
+                tabIdToContextId.set(tab.id, contextualIdentity.cookieStoreId);
+            });
+        })
+    } else if (info.menuItemId === contextMenuTabId && info.pageUrl) {
+        // create a new temporary container for the selected tab
+        browser.contextualIdentities.create({
+            name: getRandomString(16),
+            color: getRandomItemFromArray(contextualIdentityColors),
+            icon: getRandomItemFromArray(contextualIdentityIcons)
+        })
+        .then((contextualIdentity) => {
+            // now create a new tab for that tab
+            browser.tabs.create({
+                cookieStoreId: contextualIdentity.cookieStoreId,
+                url: info.pageUrl
+            })
+            .then((newTab) => {
+                // then store it in our map and remove the old tab
+                tabIdToContextId.set(newTab.id, contextualIdentity.cookieStoreId);
+                browser.tabs.remove(tab.id);
             });
         })
     }
 });
 
 browser.tabs.onRemoved.addListener(function(tabId, removeInfo) {
-    if (tabId && tabIdToContextId && tabIdToContextId[tabId]) {
-        browser.contextualIdentities.remove(tabIdToContextId[tabId]);
-        delete tabIdToContextId[tabId];
+    if (tabId && tabIdToContextId && tabIdToContextId.has(tabId)) {
+        browser.contextualIdentities.remove(tabIdToContextId.get(tabId));
+        tabIdToContextId.delete(tabId);
     }
 });
 
